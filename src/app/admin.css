@@ -478,3 +478,6 @@ button.admin-avatar:hover,button.admin-avatar[aria-expanded="true"]{box-shadow:0
   .report-section-head{margin:26px 0 14px;padding-top:20px}
   .report-section-head h2{font-size:19px}
 }
+
+/* Car form: photos picked but not uploaded until the car is saved */
+.image-preview.pending .pending-tag{position:absolute;left:6px;bottom:6px;background:rgba(28,30,33,.85);color:#fff;font-size:9px;font-weight:800;letter-spacing:.2px;padding:3px 6px;border-radius:6px}

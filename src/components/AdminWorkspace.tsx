@@ -32,6 +32,10 @@ type FeedbackForm = { name: string; message: string; rating: number; image: { ur
 const emptyFeedback = (): FeedbackForm => ({ name: '', message: '', rating: 5, image: { url: '', publicId: '' }, published: true });
 const emptyUser = (): UserForm => ({ firstName: '', lastName: '', email: '', password: '', phone: '', address: '', role: 'admin' });
 type CarForm = Omit<Car, '_id'>;
+/** A photo picked for the car form but not uploaded yet; it is sent to storage only when the car is saved. */
+type PendingPhoto = { id: string; file: File; preview: string };
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 type SaleForm = NonNullable<Car['sale']>;
 type SortKey = 'car' | 'price' | 'location' | 'views' | 'status' | 'postedBy' | 'createdAt';
 type SortDir = 'asc' | 'desc';
@@ -56,6 +60,8 @@ export default function AdminWorkspace({ superadmin = false }: { superadmin?: bo
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<Car | null>(null);
   const [form, setForm] = useState<CarForm>(emptyCar);
+  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
+  const [saveNote, setSaveNote] = useState('');
   const [selling, setSelling] = useState<Car | null>(null);
   const [saleForm, setSaleForm] = useState<SaleForm>(() => emptySale(0));
   const [carSearch, setCarSearch] = useState('');
@@ -157,28 +163,56 @@ export default function AdminWorkspace({ superadmin = false }: { superadmin?: bo
   }
 
   function openCar(car?: Car) { const fresh = newCarForm(); setEditing(car || ({ ...fresh, _id: '' } as Car)); setForm(car ? { ...car } : fresh); setError(''); setTab('cars'); }
+  // Opening, switching or closing the car form drops photos that were picked but never saved.
+  useEffect(() => {
+    setPendingPhotos(current => { current.forEach(photo => URL.revokeObjectURL(photo.preview)); return []; });
+  }, [editing]);
+  function pickPhotos(files?: FileList | null) {
+    if (!files?.length) return;
+    const picked = Array.from(files);
+    const room = 7 - form.images.length - pendingPhotos.length;
+    if (picked.length > room) { setError(room > 0 ? `Choose up to ${room} more ${room === 1 ? 'photo' : 'photos'}.` : 'This car already has 7 photos.'); return; }
+    const wrongType = picked.find(file => !PHOTO_TYPES.includes(file.type));
+    if (wrongType) { setError(`${wrongType.name} is not a JPEG, PNG or WebP photo.`); return; }
+    const tooBig = picked.find(file => file.size > MAX_PHOTO_BYTES);
+    if (tooBig) { setError(`${tooBig.name} is larger than 5 MB.`); return; }
+    setError('');
+    setPendingPhotos(current => [...current, ...picked.map(file => ({ id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`, file, preview: URL.createObjectURL(file) }))]);
+  }
+  function removePendingPhoto(id: string) {
+    setPendingPhotos(current => current.filter(photo => {
+      if (photo.id === id) URL.revokeObjectURL(photo.preview);
+      return photo.id !== id;
+    }));
+  }
+  /** Picked photos are uploaded here, only once Save/Add car is clicked, so nothing
+   *  reaches Google Drive for a car that is never saved. */
   async function saveCar(event: React.FormEvent) {
     event.preventDefault(); setError('');
-    if (form.images.length < 1 || form.images.length > 7) { setError('Add 1 to 7 photos before saving this car.'); return; }
+    const total = form.images.length + pendingPhotos.length;
+    if (total < 1 || total > 7) { setError('Add 1 to 7 photos before saving this car.'); return; }
     setBusy(true);
+    let images = form.images;
+    let remaining = pendingPhotos;
     try {
-      await api(editing?._id ? `/admin/cars/${editing._id}` : '/admin/cars', { method: editing?._id ? 'PUT' : 'POST', body: JSON.stringify(form) }, token);
-      setEditing(null); setForm(emptyCar()); await load(token); setTab('cars');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save car.'); }
-    finally { setBusy(false); }
-  }
-  async function uploadImages(files?: FileList | null) {
-    if (!files?.length) return;
-    if (form.images.length + files.length > 7) { setError(`Choose up to ${7 - form.images.length} more photos.`); return; }
-    setBusy(true); setError('');
-    try {
-      for (const file of Array.from(files)) {
-        const data = new FormData(); data.append('image', file);
+      for (const [index, photo] of pendingPhotos.entries()) {
+        setSaveNote(`Uploading photo ${index + 1} of ${pendingPhotos.length}...`);
+        const data = new FormData(); data.append('image', photo.file);
         const image = await api<Car['images'][number]>('/admin/upload', { method: 'POST', body: data }, token);
-        setForm(current => ({ ...current, images: [...current.images, image] }));
+        images = [...images, image];
+        remaining = remaining.filter(item => item.id !== photo.id);
+        URL.revokeObjectURL(photo.preview);
       }
-    } catch (e) { setError(e instanceof Error ? e.message : 'Upload failed.'); }
-    finally { setBusy(false); }
+      setSaveNote('Saving car...');
+      await api(editing?._id ? `/admin/cars/${editing._id}` : '/admin/cars', { method: editing?._id ? 'PUT' : 'POST', body: JSON.stringify({ ...form, images }) }, token);
+      setEditing(null); setForm(emptyCar()); await load(token); setTab('cars');
+    } catch (e) {
+      // Photos that already uploaded stay on the form, so trying again only sends the rest.
+      setForm(current => ({ ...current, images }));
+      setPendingPhotos(remaining);
+      setError(e instanceof Error ? e.message : 'Could not save car.');
+    }
+    finally { setBusy(false); setSaveNote(''); }
   }
   async function refreshUsers() { setUsers(await api<User[]>('/admin/users', {}, token)); }
   function openUser(person?: User) {
@@ -336,7 +370,7 @@ export default function AdminWorkspace({ superadmin = false }: { superadmin?: bo
   <td><div className="row-actions" onClick={event => event.stopPropagation()}><button onClick={() => openCar(car)}>Edit</button><button className="sale-action" onClick={() => openSale(car)}>{car.status === 'sold' ? 'Sale details' : 'Mark sold'}</button><button onClick={() => setDeleting(car)} aria-label={`Delete ${car.brand} ${car.model}`}><Trash2 size={16}/></button></div></td>
 </tr>)}</tbody></table>{!filteredCars.length && <p className="panel-empty">No cars found.</p>}</div></div></>}
       {tab === 'cars' && editing && <><div className="admin-page-head"><div><button className="back-link" onClick={() => setEditing(null)}><ArrowLeft size={17}/> Back to cars</button><h1>{editing._id ? 'Edit car' : 'Add a car'}<span className="accent-dot">.</span></h1><p>Give buyers the details they need to enquire with confidence.</p></div></div><form className="admin-car-form" onSubmit={saveCar}><section className="admin-panel"><h2>Basic details</h2><div className="admin-form-grid"><VehicleFields key={editing._id || "new"} value={{ brand: form.brand, model: form.model, bodyType: form.bodyType }} inventory={cars} onChange={vehicle => setForm(current => ({ ...current, ...vehicle }))}/><label>Year<input type="number" min="1980" max={new Date().getFullYear() + 1} required value={form.year} onChange={event => setForm({ ...form, year: Number(event.target.value) })}/></label><label>Price (₹)<input type="number" min="1" required value={form.price || ''} onChange={event => setForm({ ...form, price: Number(event.target.value) })}/></label><label>Fuel type<select value={form.fuelType} onChange={event => setForm({ ...form, fuelType: event.target.value })}>{['Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG'].map(value => <option key={value}>{value}</option>)}</select></label><label>Transmission<select value={form.transmission} onChange={event => setForm({ ...form, transmission: event.target.value })}><option>Manual</option><option>Automatic</option></select></label><label>Kilometres driven<input type="number" min="0" required value={form.kmDriven} onChange={event => setForm({ ...form, kmDriven: Number(event.target.value) })}/></label><label>Location<input required value={form.location} onChange={event => setForm({ ...form, location: event.target.value })} placeholder="e.g. Chennai"/></label><label>Status<select value={form.status} onChange={event => setForm({ ...form, status: event.target.value as Car['status'] })}><option value="active">Active</option>{form.status === 'sold' && <option value="sold">Sold</option>}<option value="hidden">Hidden</option></select></label></div></section><section className="admin-panel"><h2>Description &amp; features</h2><label>Description<textarea rows={5} value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} placeholder="Describe the car, condition and highlights"/></label><FeaturePicker value={form.features || []} onChange={features => setForm(current => ({ ...current, features }))}/></section>
-        <section className="admin-panel"><h2>Posted by</h2><p className="muted">Filled in from your account. Change it if you are listing on someone else&apos;s behalf. Shown to buyers and in the admin table.</p><div className="admin-form-grid"><label>Name<input value={form.postedBy?.name || ''} onChange={event => setForm({ ...form, postedBy: { ...(form.postedBy || {}), name: event.target.value } })} placeholder="Your name"/></label><label>Email<input type="email" value={form.postedBy?.email || ''} onChange={event => setForm({ ...form, postedBy: { ...(form.postedBy || {}), email: event.target.value } })} placeholder="you@example.com"/></label><label>Phone<input type="tel" value={form.postedBy?.phone || ''} onChange={event => setForm({ ...form, postedBy: { ...(form.postedBy || {}), phone: event.target.value } })} placeholder="Contact number"/></label></div></section><section className="admin-panel"><h2>Photos ({form.images.length}/7)</h2><p className="muted">Add 1 to 7 JPEG, PNG or WebP photos (up to 5 MB each). Select several files at once. Stored in {signedInAs?.storage === 'drive' ? 'Google Drive' : 'Cloudinary'}.</p><div className="image-preview-grid">{form.images.map((image, index) => <div key={`${image.url}-${index}`} className="image-preview"><img src={image.url} alt={`Car photo ${index + 1}`}/><button type="button" aria-label="Remove image" onClick={() => setForm({ ...form, images: form.images.filter((_, current) => current !== index) })}><X size={16}/></button></div>)}{form.images.length < 7 && <label className="upload-tile"><Upload size={22}/><span>{busy ? 'Uploading...' : 'Upload image'}</span><input type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event => { uploadImages(event.target.files); event.target.value = ''; }}/></label>}</div></section><div className="form-actions"><button type="button" className="button button-secondary" onClick={() => setEditing(null)}>Cancel</button><button className="button button-primary" disabled={busy || form.images.length < 1}><Save size={18}/>{busy ? 'Saving...' : 'Save car'}</button></div></form></>}
+        <section className="admin-panel"><h2>Posted by</h2><p className="muted">Filled in from your account. Change it if you are listing on someone else&apos;s behalf. Shown to buyers and in the admin table.</p><div className="admin-form-grid"><label>Name<input value={form.postedBy?.name || ''} onChange={event => setForm({ ...form, postedBy: { ...(form.postedBy || {}), name: event.target.value } })} placeholder="Your name"/></label><label>Email<input type="email" value={form.postedBy?.email || ''} onChange={event => setForm({ ...form, postedBy: { ...(form.postedBy || {}), email: event.target.value } })} placeholder="you@example.com"/></label><label>Phone<input type="tel" value={form.postedBy?.phone || ''} onChange={event => setForm({ ...form, postedBy: { ...(form.postedBy || {}), phone: event.target.value } })} placeholder="Contact number"/></label></div></section><section className="admin-panel"><h2>Photos ({form.images.length + pendingPhotos.length}/7)</h2><p className="muted">Add 1 to 7 JPEG, PNG or WebP photos (up to 5 MB each). Select several files at once. New photos are uploaded to {signedInAs?.storage === 'drive' ? 'Google Drive' : 'Cloudinary'} only when you click {editing._id ? 'Save car' : 'Add car'}.</p><div className="image-preview-grid">{form.images.map((image, index) => <div key={`${image.url}-${index}`} className="image-preview"><img src={image.url} alt={`Car photo ${index + 1}`}/><button type="button" aria-label="Remove image" disabled={busy} onClick={() => setForm({ ...form, images: form.images.filter((_, current) => current !== index) })}><X size={16}/></button></div>)}{pendingPhotos.map((photo, index) => <div key={photo.id} className="image-preview pending"><img src={photo.preview} alt={`New car photo ${form.images.length + index + 1}`}/><span className="pending-tag">Not uploaded yet</span><button type="button" aria-label="Remove image" disabled={busy} onClick={() => removePendingPhoto(photo.id)}><X size={16}/></button></div>)}{form.images.length + pendingPhotos.length < 7 && <label className="upload-tile"><Upload size={22}/><span>Add photos</span><input type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event => { pickPhotos(event.target.files); event.target.value = ''; }}/></label>}</div></section><div className="form-actions"><button type="button" className="button button-secondary" disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button className="button button-primary" disabled={busy || form.images.length + pendingPhotos.length < 1}><Save size={18}/>{busy ? (saveNote || 'Saving...') : editing._id ? 'Save car' : 'Add car'}</button></div></form></>}
       {tab === 'appearance' && !editing && <><div className="admin-page-head"><div><span className="admin-kicker">WEBSITE APPEARANCE</span><h1>Header media<span className="accent-dot">.</span></h1><p>Upload a picture or a video for the homepage header. Whatever you pick here plays behind the headline.</p></div>{activeHero && <button type="button" className="button button-secondary" disabled={heroBusy} onClick={useDefaultHero}><RotateCcw size={16}/> Use default image</button>}</div>
         <div className="admin-panel"><div className="panel-title"><h2>Live header</h2><span className="hero-live-tag">{activeHero ? (activeHero.type === 'video' ? <><Video size={13}/> Video</> : <><ImageIcon size={13}/> Image</>) : <><ImageIcon size={13}/> Default image</>}</span></div>
           <div className="hero-live-preview">{activeHero?.type === 'video' ? <video key={activeHero._id} className="hero-live-media" autoPlay muted loop playsInline poster={activeHero.posterUrl || undefined} src={activeHero.url}/> : <img className="hero-live-media" src={activeHero?.url || '/carwise-hero.png'} alt=""/>}<span className="hero-live-scrim"/><div className="hero-live-copy"><span><Sparkles size={12}/> YOUR CAR SEARCH STARTS HERE</span><strong>Find a car you&apos;ll<br/><em>love to drive.</em></strong><small>This is how the homepage header looks right now.</small></div></div></div>

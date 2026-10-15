@@ -5,7 +5,7 @@ import { ArrowRight, BadgeIndianRupee, CarFront, ClipboardCheck, FileCheck2, Han
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import JsonLd from '@/components/JsonLd';
-import { BUSINESS, BUSINESS_ADDRESS, OG_IMAGE, SITE_URL, absoluteUrl, breadcrumbJsonLd, faqJsonLd } from '@/lib/seo';
+import { AREA_SERVED, BUSINESS, BUSINESS_ADDRESS, OG_IMAGE, SITE_URL, absoluteUrl, breadcrumbJsonLd, faqJsonLd } from '@/lib/seo';
 import { WHATSAPP_DISPLAY, WHATSAPP_NUMBER, generalMessage, whatsappLink } from '@/lib/whatsapp';
 
 const PATH = '/car-consulting-coimbatore';
@@ -34,10 +34,10 @@ const SERVICES = [
 ];
 
 const FAQ = [
-  { q: 'Where can I find car consulting near me in Coimbatore?', a: `Smileage offers car consulting across Coimbatore, including Gandhipuram, RS Puram, Peelamedu, Saravanampatti and Singanallur. Call or WhatsApp ${BUSINESS.contactPerson} on ${WHATSAPP_DISPLAY}.` },
+  { q: 'Where can I find car consulting near me in Coimbatore?', a: `Smileage is based in Coimbatore and offers car consulting across Tamil Nadu. Call or WhatsApp ${BUSINESS.contactPerson} on ${WHATSAPP_DISPLAY}.` },
   { q: 'Why should I use a car consultant to buy a used car?', a: 'A car consultant checks the car and its papers, tells you the fair market price and helps with the transfer, so you avoid hidden problems and overpaying.' },
   { q: 'Who is the car consultant at Smileage?', a: `${BUSINESS.contactPerson} is the car consultant at Smileage, Coimbatore. You can reach ${BUSINESS.contactPerson} directly on ${WHATSAPP_DISPLAY} by phone or WhatsApp.` },
-  { q: 'Do you cover Tiruppur and Pollachi?', a: 'Yes. Smileage helps car buyers and sellers in Coimbatore, Tiruppur, Pollachi, Mettupalayam, Sulur, Palladam and Annur.' }
+  { q: 'Do you help buyers outside Coimbatore?', a: 'Yes. Smileage helps car buyers and sellers across all of Tamil Nadu, not only in Coimbatore.' }
 ];
 
 const serviceJsonLd = {
@@ -49,7 +49,7 @@ const serviceJsonLd = {
   description: DESCRIPTION,
   url: absoluteUrl(PATH),
   provider: { '@id': `${SITE_URL}/#business` },
-  areaServed: BUSINESS.areaServed.map(name => ({ '@type': 'Place', name: `${name}, Tamil Nadu` })),
+  areaServed: AREA_SERVED,
   availableChannel: { '@type': 'ServiceChannel', servicePhone: { '@type': 'ContactPoint', telephone: BUSINESS.phone, name: BUSINESS.contactPerson }, serviceUrl: absoluteUrl(PATH) },
   hasOfferCatalog: { '@type': 'OfferCatalog', name: 'Car consulting services', itemListElement: SERVICES.map(service => ({ '@type': 'Offer', itemOffered: { '@type': 'Service', name: service.title, description: service.text } })) }
 };
@@ -73,10 +73,9 @@ export default function CarConsultingCoimbatore() {
       <div className="market-step-grid consulting-services">{SERVICES.map(({ icon: Icon, title, text }) => <div key={title}><Icon size={27}/><h3>{title}</h3><p>{text}</p></div>)}</div>
     </div></section>
     <section className="market-local" aria-labelledby="areas-heading"><div className="container market-local-grid"><div>
-      <div data-reveal=""><span className="market-overline reveal-fade" style={step(0)}>AREAS WE SERVE</span>
-      <h2 id="areas-heading"><span className="reveal-line" style={step(1)}><span>Car consultant near you in Coimbatore</span></span></h2></div>
-      <p>Smileage works across Coimbatore city and nearby towns. Wherever you are, call {BUSINESS.contactPerson} on <a href={`tel:+${WHATSAPP_NUMBER}`}>{WHATSAPP_DISPLAY}</a> and we will meet you to see the car.</p>
-      <ul className="market-local-areas">{BUSINESS.areaServed.map(area => <li key={area}>Car consulting {area}</li>)}</ul>
+      <div data-reveal=""><span className="market-overline reveal-fade" style={step(0)}>NEAR YOU</span>
+      <h2 id="areas-heading"><span className="reveal-line" style={step(1)}><span>Car consultant near you, anywhere in Tamil Nadu</span></span></h2></div>
+      <p>Smileage is based in Coimbatore and works with car buyers and sellers across Tamil Nadu. Wherever you are, call {BUSINESS.contactPerson} on <a href={`tel:+${WHATSAPP_NUMBER}`}>{WHATSAPP_DISPLAY}</a> and we will meet you to see the car.</p>
       <div className="market-local-links"><Link href="/cars">Used cars for sale in Coimbatore <ArrowRight size={16}/></Link><Link href="/contact">Contact Smileage <ArrowRight size={16}/></Link></div>
     </div><div className="market-local-faq"><h3>Car consulting questions</h3>{FAQ.map(item => <details key={item.q}><summary>{item.q}</summary><p>{item.a}</p></details>)}</div></div></section>
   </main><SiteFooter/></>;

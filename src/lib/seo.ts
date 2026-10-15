@@ -30,22 +30,28 @@ export const BUSINESS = {
   // Coimbatore city centre. Replace with the exact shop pin from Google Maps for best local results.
   latitude: 11.0168,
   longitude: 76.9558,
-  /** Areas the business serves, used in schema and page copy. */
-  areaServed: ['Coimbatore', 'Gandhipuram', 'RS Puram', 'Peelamedu', 'Saibaba Colony', 'Saravanampatti', 'Singanallur', 'Ukkadam', 'Kuniyamuthur', 'Sulur', 'Tiruppur', 'Pollachi', 'Mettupalayam', 'Palladam', 'Annur']
+  /** Based in Coimbatore, working with buyers and sellers anywhere in the state. */
+  region: 'Tamil Nadu'
 };
+
+/** Where the business works, for structured data: the whole state, with Coimbatore as its base. */
+export const AREA_SERVED = [
+  { '@type': 'State', name: 'Tamil Nadu', containedInPlace: { '@type': 'Country', name: 'India' } },
+  { '@type': 'City', name: 'Coimbatore' }
+];
 
 /** "Coimbatore, Tamil Nadu" with the street and PIN added when they are known. */
 export const BUSINESS_ADDRESS = [BUSINESS.street, BUSINESS.city, [BUSINESS.state, BUSINESS.postalCode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 
 export const DEFAULT_TITLE = 'Smileage | Car Consulting in Coimbatore – Used Cars & Car Consultant';
-export const DEFAULT_DESCRIPTION = 'Smileage is a trusted car consulting service in Coimbatore. Buy or sell used cars with expert help from car consultant David Raja – call or WhatsApp +91 96009 09652. Serving Coimbatore, Tiruppur and Pollachi.';
+export const DEFAULT_DESCRIPTION = 'Smileage is a trusted car consulting service in Coimbatore. Buy or sell used cars with expert help from car consultant David Raja – call or WhatsApp +91 96009 09652. Serving buyers and sellers across Tamil Nadu.';
 
 export const KEYWORDS = [
   'Smileage', 'Smileage cars', 'Smileage car consulting', 'Smileage Coimbatore', 'smile age cars',
   'car consulting', 'car consulting Coimbatore', 'car consulting in Coimbatore', 'car consultant Coimbatore',
   'car consultant near me', 'car consulting near me', 'car consultancy Coimbatore', 'car consalting', 'car consalting Coimbatore',
   'used cars Coimbatore', 'used car dealer Coimbatore', 'second hand cars Coimbatore', 'pre-owned cars Coimbatore',
-  'buy used car Coimbatore', 'sell my car Coimbatore', 'car broker Coimbatore', 'used cars Tiruppur', 'used cars Pollachi',
+  'buy used car Coimbatore', 'sell my car Coimbatore', 'car broker Coimbatore', 'car consulting Tamil Nadu', 'car consultant Tamil Nadu', 'used cars Tamil Nadu', 'second hand cars Tamil Nadu',
   'David Raja car consultant'
 ];
 
@@ -82,12 +88,9 @@ export function businessJsonLd() {
     currenciesAccepted: 'INR',
     address,
     geo: { '@type': 'GeoCoordinates', latitude: BUSINESS.latitude, longitude: BUSINESS.longitude },
-    areaServed: [
-      { '@type': 'GeoCircle', geoMidpoint: { '@type': 'GeoCoordinates', latitude: BUSINESS.latitude, longitude: BUSINESS.longitude }, geoRadius: 60000 },
-      ...BUSINESS.areaServed.map(name => ({ '@type': 'Place', name: `${name}, Tamil Nadu` }))
-    ],
+    areaServed: AREA_SERVED,
     knowsAbout: ['Car consulting', 'Used car sales', 'Second-hand car buying advice', 'Selling used cars', 'Car valuation', 'Car loan and RC transfer guidance'],
-    makesOffer: ['Car consulting', 'Used car buying assistance', 'Sell your car', 'Car valuation'].map(name => ({ '@type': 'Offer', itemOffered: { '@type': 'Service', name: `${name} in ${BUSINESS.city}`, areaServed: BUSINESS.city } })),
+    makesOffer: ['Car consulting', 'Used car buying assistance', 'Sell your car', 'Car valuation'].map(name => ({ '@type': 'Offer', itemOffered: { '@type': 'Service', name: `${name} in ${BUSINESS.region}`, areaServed: AREA_SERVED } })),
     employee: { '@type': 'Person', name: BUSINESS.contactPerson, jobTitle: 'Car Consultant', telephone: BUSINESS.phone },
     founder: { '@type': 'Person', name: BUSINESS.contactPerson },
     contactPoint: [
@@ -158,7 +161,7 @@ export const HOME_FAQ = [
   { q: 'What does car consulting at Smileage include?', a: 'Our car consulting in Coimbatore covers picking a car for your budget, inspecting the car, checking RC, insurance and service history, comparing prices, loan guidance and completing the ownership transfer.' },
   { q: 'Where can I buy a used car in Coimbatore?', a: 'Browse second-hand cars on the Smileage website with clear prices, photos and full details, then call or WhatsApp David Raja to see the car in Coimbatore.' },
   { q: 'Can I sell my car through Smileage?', a: 'Yes. Send your car details to +91 96009 09652 on WhatsApp and we will guide you on a fair price and help you find a buyer in Coimbatore.' },
-  { q: 'Do you help buyers outside Coimbatore city?', a: 'Yes. Along with Coimbatore we help buyers from Tiruppur, Pollachi, Mettupalayam, Sulur, Palladam and Annur.' }
+  { q: 'Do you help buyers outside Coimbatore?', a: 'Yes. Smileage is based in Coimbatore and helps car buyers and sellers across all of Tamil Nadu. Wherever you are in the state, call or WhatsApp +91 96009 09652.' }
 ];
 
 export function faqJsonLd(items = HOME_FAQ) {
