@@ -18,9 +18,9 @@ const cloudinaryFolders: Record<string, string> = {
 };
 
 const driveFolders: Record<string, string> = {
-  cars: 'Smileage - Car photos',
-  hero: 'Smileage - Header media',
-  feedback: 'Smileage - Feedback photos'
+  cars: 'KangaCars - Car photos',
+  hero: 'KangaCars - Header media',
+  feedback: 'KangaCars - Feedback photos'
 };
 
 export async function storeFile(buffer: Buffer, options: { folder: keyof typeof cloudinaryFolders | string; filename: string; mimeType: string }): Promise<StoredFile & { width?: number; height?: number; duration?: number }> {
@@ -33,7 +33,16 @@ export async function storeFile(buffer: Buffer, options: { folder: keyof typeof 
       // generic 500 sends people hunting in the wrong place.
       const detail = error instanceof Error ? error.message : 'unknown error';
       console.error('Google Drive upload failed:', detail);
-      throw new ApiError(502, `Google Drive upload failed: ${detail}. Check the Drive credentials and that the Drive API is enabled.`);
+      const loginRejected = /invalid_grant|invalid_client|unauthorized_client/i.test(detail);
+      // A dead Drive login should not stop the team adding cars: Cloudinary takes the
+      // upload instead, and removeFile() still deletes it from the right place later.
+      if (loginRejected && getCloudinary()) {
+        console.warn('Google Drive login was rejected; uploading to Cloudinary instead. Run `npm run drive:auth` to reconnect Drive.');
+      } else if (loginRejected) {
+        throw new ApiError(502, `Google Drive rejected the saved login (${detail}). Reconnect it with \`npm run drive:auth\` and update GOOGLE_DRIVE_CLIENT_SECRET / GOOGLE_DRIVE_REFRESH_TOKEN.`);
+      } else {
+        throw new ApiError(502, `Google Drive upload failed: ${detail}. Check the Drive credentials and that the Drive API is enabled.`);
+      }
     }
   }
   const isVideo = options.mimeType.startsWith('video/');
