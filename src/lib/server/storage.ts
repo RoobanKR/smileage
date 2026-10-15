@@ -18,9 +18,9 @@ const cloudinaryFolders: Record<string, string> = {
 };
 
 const driveFolders: Record<string, string> = {
-  cars: 'KangaCars - Car photos',
-  hero: 'KangaCars - Header media',
-  feedback: 'KangaCars - Feedback photos'
+  cars: 'Smileage - Car photos',
+  hero: 'Smileage - Header media',
+  feedback: 'Smileage - Feedback photos'
 };
 
 export async function storeFile(buffer: Buffer, options: { folder: keyof typeof cloudinaryFolders | string; filename: string; mimeType: string }): Promise<StoredFile & { width?: number; height?: number; duration?: number }> {
